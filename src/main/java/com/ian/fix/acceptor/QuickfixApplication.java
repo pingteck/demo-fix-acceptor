@@ -1,5 +1,6 @@
 package com.ian.fix.acceptor;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import quickfix.Application;
 import quickfix.DoNotSend;
@@ -7,13 +8,17 @@ import quickfix.FieldNotFound;
 import quickfix.IncorrectDataFormat;
 import quickfix.IncorrectTagValue;
 import quickfix.Message;
-import quickfix.MessageCracker;
 import quickfix.RejectLogon;
+import quickfix.Session;
 import quickfix.SessionID;
+import quickfix.SessionNotFound;
 import quickfix.UnsupportedMessageType;
+import quickfix.fix44.Logon;
+import quickfix.fix44.NewOrderSingle;
 
+@Slf4j
 @Component
-public class QuickfixApplication extends MessageCracker implements Application {
+public class QuickfixApplication implements Application {
 
     @Override
     public void onCreate(SessionID sessionID) {
@@ -32,39 +37,46 @@ public class QuickfixApplication extends MessageCracker implements Application {
 
     @Override
     public void toAdmin(Message message, SessionID sessionID) {
-        try {
-            crack(message, sessionID);
-        } catch (UnsupportedMessageType | IncorrectTagValue | FieldNotFound e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
     public void fromAdmin(Message message, SessionID sessionID)
         throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, RejectLogon {
-        try {
-            crack(message, sessionID);
-        } catch (UnsupportedMessageType e) {
-            throw new RuntimeException(e);
+        if (message instanceof Logon logon) {
+            handleIncomingLogon(logon);
         }
     }
 
     @Override
     public void toApp(Message message, SessionID sessionID) throws DoNotSend {
-        try {
-            crack(message, sessionID);
-        } catch (UnsupportedMessageType | FieldNotFound | IncorrectTagValue e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
     public void fromApp(Message message, SessionID sessionID)
         throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType {
-        crack(message, sessionID);
+        if (message instanceof NewOrderSingle newOrderSingle) {
+            handleIncomingNewOrderSingle(newOrderSingle, sessionID);
+        }
     }
 
-    public void onMessage(Message message, SessionID sessionID) {
-
+    private void handleIncomingLogon(Logon message) throws RejectLogon {
+        try {
+            String username = message.getUsername().getValue();
+            String password = message.getPassword().getValue();
+            if (!("username".equals(username) && "password".equals(password))) {
+                throw new RejectLogon("Invalid credentials");
+            }
+        } catch (FieldNotFound e) {
+            throw new RejectLogon("Logon requires username and password");
+        }
     }
+
+    private void handleIncomingNewOrderSingle(NewOrderSingle message, SessionID sessionID) {
+        try {
+            Session.sendToTarget(message, sessionID);
+        } catch (SessionNotFound e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
