@@ -42,6 +42,7 @@ import quickfix.field.Price;
 import quickfix.field.SecurityStatusReqID;
 import quickfix.field.SecurityTradingStatus;
 import quickfix.field.Side;
+import quickfix.field.SubscriptionRequestType;
 import quickfix.field.Symbol;
 import quickfix.field.Text;
 import quickfix.field.TimeInForce;
@@ -217,6 +218,11 @@ public class QuickfixApplication implements Application {
         if (1 != marketDepth) {
             throw new MarketDataRequestException(MDReqRejReason.UNSUPPORTED_MARKETDEPTH,
                 "Market depth must be TOP_OF_BOOK");
+        }
+        final char subscriptionRequestType = message.getSubscriptionRequestType().getValue();
+        if (SubscriptionRequestType.SNAPSHOT_UPDATES != subscriptionRequestType) {
+            throw new MarketDataRequestException(MDReqRejReason.UNSUPPORTED_SUBSCRIPTIONREQUESTTYPE,
+                "Subscription request type must be SNAPSHOT_UPDATES");
         }
         final int mdUpdateType = message.getMDUpdateType().getValue();
         if (MDUpdateType.FULL_REFRESH != mdUpdateType) {
